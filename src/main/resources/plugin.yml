@@ -1,9 +1,10 @@
 name: Trivials
 version: '1.0.0'
+folia-support: true
 main: top.alwaysready.trivials.Trivials
 api-version: '1.21'
 authors: [ AlwaysReadyWby ]
-description: Just some random trivial features
+description: 一些随机的小功能
 commands:
   trivialreload:
   trivialdebug:
