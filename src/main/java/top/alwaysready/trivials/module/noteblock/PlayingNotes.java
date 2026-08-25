@@ -6,6 +6,8 @@ import org.bukkit.SoundCategory;
 import org.bukkit.scheduler.BukkitTask;
 import top.alwaysready.trivials.Trivials;
 
+import java.lang.reflect.Method;
+
 public class PlayingNotes {
 
     private double time = 0;
@@ -17,6 +19,28 @@ public class PlayingNotes {
     private boolean running = false;
     private Object taskHandle;
     private long lastTickTime;
+    private Runnable onStop;
+
+    private static Method getRegionSchedulerMethod;
+    private static Method runAtFixedRateMethod;
+    private static Method cancelTaskMethod;
+
+    static {
+        try {
+            getRegionSchedulerMethod = Bukkit.class.getMethod("getRegionScheduler");
+            Class<?> regionSchedulerClass = getRegionSchedulerMethod.getReturnType();
+            runAtFixedRateMethod = regionSchedulerClass.getMethod("runAtFixedRate",
+                    org.bukkit.plugin.Plugin.class,
+                    Location.class,
+                    Runnable.class,
+                    long.class,
+                    long.class);
+            Class<?> scheduledTaskClass = Class.forName("io.papermc.paper.threadedregions.scheduler.ScheduledTask");
+            cancelTaskMethod = scheduledTaskClass.getMethod("cancel");
+        } catch (Exception e) {
+            // 非 Folia 环境
+        }
+    }
 
     public PlayingNotes setData(NoteData data) {
         this.data = data;
@@ -30,6 +54,11 @@ public class PlayingNotes {
 
     public PlayingNotes setSound(String sound) {
         this.sound = sound;
+        return this;
+    }
+
+    public PlayingNotes setOnStop(Runnable onStop) {
+        this.onStop = onStop;
         return this;
     }
 
@@ -74,13 +103,19 @@ public class PlayingNotes {
 
         long period = 1L;
         if (Trivials.isFolia()) {
-            taskHandle = Bukkit.getRegionScheduler().runAtFixedRate(
-                    Trivials.getInstance(),
-                    location,
-                    scheduledTask -> tick(),
-                    0L,
-                    period
-            );
+            try {
+                Object regionScheduler = getRegionSchedulerMethod.invoke(null);
+                taskHandle = runAtFixedRateMethod.invoke(regionScheduler,
+                        Trivials.getInstance(),
+                        location,
+                        (Runnable) this::tick,
+                        0L,
+                        period);
+            } catch (Exception e) {
+                Trivials.getInstance().getLogger().warning("Failed to schedule Folia task: " + e.getMessage());
+                running = false;
+                return;
+            }
         } else {
             taskHandle = Bukkit.getScheduler().runTaskTimer(
                     Trivials.getInstance(),
@@ -97,6 +132,7 @@ public class PlayingNotes {
         cancelTask();
         taskHandle = null;
         currentNode = null;
+        if (onStop != null) onStop.run();
     }
 
     private void tick() {
@@ -146,8 +182,10 @@ public class PlayingNotes {
     private void cancelTask() {
         if (taskHandle == null) return;
         if (Trivials.isFolia()) {
-            if (taskHandle instanceof io.papermc.paper.threadedregions.scheduler.ScheduledTask) {
-                ((io.papermc.paper.threadedregions.scheduler.ScheduledTask) taskHandle).cancel();
+            try {
+                cancelTaskMethod.invoke(taskHandle);
+            } catch (Exception e) {
+                // ignore
             }
         } else {
             if (taskHandle instanceof BukkitTask) {
