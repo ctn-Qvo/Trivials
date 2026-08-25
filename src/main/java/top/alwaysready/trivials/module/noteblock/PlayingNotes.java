@@ -3,17 +3,20 @@ package top.alwaysready.trivials.module.noteblock;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.SoundCategory;
+import org.bukkit.scheduler.BukkitTask;
 import top.alwaysready.trivials.Trivials;
 
-import java.util.List;
-
 public class PlayingNotes {
-    //In millis
+
     private double time = 0;
     private NoteData data;
     private String sound;
     private Location location;
     private NoteNode currentNode;
+
+    private boolean running = false;
+    private Object taskHandle;
+    private long lastTickTime;
 
     public PlayingNotes setData(NoteData data) {
         this.data = data;
@@ -21,7 +24,7 @@ public class PlayingNotes {
     }
 
     public PlayingNotes setLocation(Location location) {
-        this.location = location;
+        this.location = location.clone();
         return this;
     }
 
@@ -50,42 +53,110 @@ public class PlayingNotes {
         return sound;
     }
 
-    public void start(){
-        time = 0;
-        if(getSound() == null || getLocation() == null) return;
+    public void start() {
+        if (running) return;
+        if (getSound() == null || getLocation() == null || getData() == null) {
+            Trivials.getInstance().getLogger().warning("PlayingNotes: missing parameters");
+            return;
+        }
+
         currentNode = getData().getFirst();
-        String title = getData().getTitle();
-        if(title == null && currentNode == null) return;
-        if(title !=null || currentNode.getPitch()>=0) {
-            Bukkit.getScheduler().runTask(Trivials.getInstance(), () -> {
-                getLocation().getWorld().playSound(getLocation(),
-                        getSound(),
-                        SoundCategory.BLOCKS,
-                        3,
-                        currentNode.getPitch());
-                if(title==null) return;
-                getLocation().getWorld().getPlayers().stream()
-                        .filter(player -> player.getLocation().distance(getLocation())<48)
-                        .forEach(player -> player.sendTitle(title,null,10,20,10));
-            });
+        if (currentNode == null) {
+            Trivials.getInstance().getLogger().warning("PlayingNotes: no note data");
+            return;
+        }
+
+        running = true;
+        time = 0;
+        lastTickTime = System.currentTimeMillis();
+
+        playNode(currentNode, true);
+
+        long period = 1L;
+        if (Trivials.isFolia()) {
+            taskHandle = Bukkit.getRegionScheduler().runAtFixedRate(
+                    Trivials.getInstance(),
+                    location,
+                    scheduledTask -> tick(),
+                    0L,
+                    period
+            );
+        } else {
+            taskHandle = Bukkit.getScheduler().runTaskTimer(
+                    Trivials.getInstance(),
+                    this::tick,
+                    0L,
+                    period
+            );
         }
     }
 
-    public void elapse(double elapsed, List<Runnable> post){
-        time+=elapsed;
-        while(currentNode != null && currentNode.getEnd()-time <= 25){
+    public void stop() {
+        if (!running) return;
+        running = false;
+        cancelTask();
+        taskHandle = null;
+        currentNode = null;
+    }
+
+    private void tick() {
+        if (!running || currentNode == null) {
+            stop();
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        double elapsed = now - lastTickTime;
+        lastTickTime = now;
+
+        time += elapsed;
+
+        while (currentNode != null && currentNode.getEnd() - time <= 25) {
+            playNode(currentNode, false);
             currentNode = currentNode.getNext();
-            if(currentNode!=null && currentNode.getPitch()>=0){
-                post.add(()->getLocation().getWorld().playSound(getLocation(),
-                        getSound(),
-                        SoundCategory.BLOCKS,
-                        3,
-                        currentNode.getPitch()));
+        }
+
+        if (currentNode == null) {
+            stop();
+        }
+    }
+
+    private void playNode(NoteNode node, boolean sendTitle) {
+        if (node == null) return;
+        if (node.getPitch() < 0) return;
+
+        location.getWorld().playSound(
+                location,
+                sound,
+                SoundCategory.BLOCKS,
+                3.0f,
+                node.getPitch()
+        );
+
+        if (sendTitle) {
+            String title = data.getTitle();
+            if (title != null && !title.isEmpty()) {
+                location.getWorld().getPlayers().stream()
+                        .filter(player -> player.getLocation().distanceSquared(location) < 2304)
+                        .forEach(player -> player.sendTitle(title, null, 10, 20, 10));
             }
         }
     }
 
-    public boolean isStopped(){
-        return currentNode == null;
+    private void cancelTask() {
+        if (taskHandle == null) return;
+        if (Trivials.isFolia()) {
+            if (taskHandle instanceof io.papermc.paper.threadedregions.scheduler.ScheduledTask) {
+                ((io.papermc.paper.threadedregions.scheduler.ScheduledTask) taskHandle).cancel();
+            }
+        } else {
+            if (taskHandle instanceof BukkitTask) {
+                ((BukkitTask) taskHandle).cancel();
+            }
+        }
+    }
+
+    public boolean isStopped() {
+        return !running || currentNode == null;
     }
 }
