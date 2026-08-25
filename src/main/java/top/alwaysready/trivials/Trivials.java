@@ -21,6 +21,20 @@ public final class Trivials extends JavaPlugin {
         return instance;
     }
 
+    private static boolean foliaDetected = false;
+    static {
+        try {
+            Class.forName("io.papermc.paper.threadedregions.scheduler.RegionScheduler");
+            foliaDetected = true;
+        } catch (ClassNotFoundException e) {
+            foliaDetected = false;
+        }
+    }
+
+    public static boolean isFolia() {
+        return foliaDetected;
+    }
+
     private ModuleManager moduleManager;
 
     @Override
@@ -31,7 +45,9 @@ public final class Trivials extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        // Plugin shutdown logic
+        if (moduleManager != null) {
+            moduleManager.getModule(NoteBlockModule.class).ifPresent(NoteBlockModule::stopAll);
+        }
     }
 
     public void loadConfig() {
@@ -48,7 +64,7 @@ public final class Trivials extends JavaPlugin {
                 try {
                     cfg.save(file);
                 } catch (IOException e) {
-                    Trivials.getInstance().getLogger().log(Level.WARNING,"Failed to save config.yml",e);
+                    Trivials.getInstance().getLogger().log(Level.WARNING, "Failed to save config.yml", e);
                 }
             }
         }
@@ -64,14 +80,14 @@ public final class Trivials extends JavaPlugin {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!sender.hasPermission("trivials.admin")) return false;
-        switch (label){
-            case "trivialreload"->{
+        switch (label) {
+            case "trivialreload" -> {
                 loadConfig();
                 sender.sendMessage("Reloaded");
             }
-            case "trivialdebug"->{
-                if(!(sender instanceof Player p)) return false;
-                if(args.length==0) return false;
+            case "trivialdebug" -> {
+                if (!(sender instanceof Player p)) return false;
+                if (args.length == 0) return false;
                 NoteNode note = new NotesBuilder()
                         .parse(String.join(" ", args))
                         .build();
@@ -86,7 +102,7 @@ public final class Trivials extends JavaPlugin {
                         .setSound(data.getSound());
                 playing.start();
                 getModuleManager().getModule(NoteBlockModule.class).ifPresent(module -> {
-                    module.addPlayingNote(data.getId(),playing);
+                    module.addPlayingNote(data.getId(), playing);
                 });
             }
         }
