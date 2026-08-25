@@ -1,6 +1,6 @@
 name: Trivials
 version: '1.0.0'
-folia-support: true
+folia-supported: true
 main: top.alwaysready.trivials.Trivials
 api-version: '1.21'
 authors: [ AlwaysReadyWby ]
