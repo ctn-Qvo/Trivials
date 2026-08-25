@@ -1,6 +1,8 @@
 package top.alwaysready.trivials.module.itemframe;
 
 import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
@@ -164,45 +166,18 @@ public enum FrameOffset {
         this.offZ = (float) (dir.getZ() * offsetFront + 0.5);
     }
 
-    public float getYaw() {
-        return yaw;
-    }
-
-    public float getPitch() {
-        return pitch;
-    }
-
-    public float getScale() {
-        return scale;
-    }
-
-    public float getOffX() {
-        return offX;
-    }
-
-    public float getOffY() {
-        return offY;
-    }
-
-    public float getOffZ() {
-        return offZ;
-    }
-
-    public float getTransX() {
-        return transX;
-    }
-
-    public float getTransY() {
-        return transY;
-    }
-
-    public float getTransZ() {
-        return transZ;
-    }
+    public float getYaw() { return yaw; }
+    public float getPitch() { return pitch; }
+    public float getScale() { return scale; }
+    public float getOffX() { return offX; }
+    public float getOffY() { return offY; }
+    public float getOffZ() { return offZ; }
+    public float getTransX() { return transX; }
+    public float getTransY() { return transY; }
+    public float getTransZ() { return transZ; }
 
     public Location getLocation(Location blockLoc) {
-        Location ret = blockLoc.clone()
-                .add(getOffX(), getOffY(), getOffZ());
+        Location ret = blockLoc.clone().add(getOffX(), getOffY(), getOffZ());
         ret.setYaw(getYaw());
         ret.setPitch(getPitch());
         return ret;
